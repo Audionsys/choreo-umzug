@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Saltara – neue Adresse</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0c0c12;color:#eee;font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.c{max-width:460px;padding:32px;text-align:center}
+h1{font-size:34px;letter-spacing:1px;margin:0 0 6px}h1 span{color:#e9c46a}
+p{color:#bbb}button{margin-top:14px;font:600 17px system-ui;padding:14px 26px;border:0;border-radius:12px;background:#e9c46a;color:#111;cursor:pointer}
+small{display:block;margin-top:18px;color:#888}a{color:#e9c46a}
+</style></head><body><div class="c">
+<h1>SAL<span>TARA</span></h1>
+<p id="msg">Saltara (früher Formata) wohnt jetzt unter <b>saltara.audionsys.de</b>.</p>
+<div id="box" style="display:none">
+<p>Auf diesem Gerät sind noch deine Choreos von der alten Adresse gespeichert. Nimm sie mit einem Tipp mit:</p>
+<button id="go">Meine Choreos mitnehmen</button>
+<small>Ohne Mitnehmen weiter: <a id="skip" href="#">saltara.audionsys.de</a></small>
+</div></div>
+<script>
+const NEW='https://saltara.audionsys.de', TARGET=NEW+'/'+location.search+location.hash;
+const $=s=>document.querySelector(s);
+function idbAll(){ return new Promise(res=>{ let r; try{ r=indexedDB.open('formata'); }catch(e){ return res([]); }
+  r.onupgradeneeded=()=>{ /* gab es hier nie */ };
+  r.onerror=()=>res([]);
+  r.onsuccess=()=>{ const db=r.result; if(!db.objectStoreNames.contains('files')) return res([]);
+    const out=[], cur=db.transaction('files').objectStore('files').openCursor();
+    cur.onsuccess=()=>{ const c=cur.result; if(c){ if(c.value!=null) out.push([c.key,c.value]); c.continue(); } else res(out); };
+    cur.onerror=()=>res(out); }; }); }
+function lsAll(){ const o={}; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(/^(saltara|formata)-/.test(k)) o[k]=localStorage.getItem(k); } }catch(e){} return o; }
+(async()=>{
+  const ls=lsAll(), idb=await idbAll();
+  const hasData=idb.some(([k])=>String(k).startsWith('proj:')||String(k).startsWith('song'))||ls['saltara-v7']||ls['formata-v7'];
+  if(!hasData||ls['saltara-umgezogen']){ location.replace(TARGET); return; }
+  $('#box').style.display='block'; $('#skip').href=TARGET;
+  $('#go').onclick=()=>{ const w=window.open(NEW+'/?umzug=1','_blank'); if(!w){ $('#msg').textContent='Bitte Pop-ups für diese Seite erlauben und nochmal tippen.'; return; }
+    $('#go').disabled=true; $('#go').textContent='Wird übertragen …';
+    const to=setTimeout(()=>{ $('#msg').textContent='Das hat nicht geklappt – bitte nochmal versuchen.'; $('#go').disabled=false; $('#go').textContent='Meine Choreos mitnehmen'; },20000);
+    addEventListener('message',e=>{ if(e.origin!==NEW||!e.data) return;
+      if(e.data.t==='umzug-ready') w.postMessage({t:'umzug-data',ls,idb},NEW);
+      if(e.data.t==='umzug-done'){ clearTimeout(to); try{ localStorage.setItem('saltara-umgezogen','1'); }catch(x){} location.replace(TARGET); }
+      if(e.data.t==='umzug-fail'){ clearTimeout(to); $('#msg').textContent='Übertragung fehlgeschlagen: '+e.data.err; } }); };
+})();
+</script>
+</body></html>
